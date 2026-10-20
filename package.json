@@ -1,0 +1,16 @@
+{
+  "name": "fanqie-reader",
+  "productName": "番茄小窗",
+  "version": "1.0.0",
+  "description": "番茄小说桌面小窗阅读器 —— 常驻置顶、可穿透、可隐藏的迷你阅读窗口",
+  "main": "src/main.js",
+  "author": "WorkBuddy",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0"
+  }
+}

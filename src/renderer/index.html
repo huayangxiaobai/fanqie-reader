@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'" />
+<title>番茄小窗</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app" class="theme-paper">
+
+  <!-- ══ 标题栏 ══ -->
+  <header id="titlebar">
+    <div id="brand">
+      <div id="badge">🍅</div>
+      <div id="titles">
+        <div id="bookname" title="">未选择书籍</div>
+        <div id="chapname">粘贴番茄小说链接或 ID 开始</div>
+      </div>
+    </div>
+    <div id="actions">
+      <button class="ic" id="btn-shelf" title="书架">
+        <svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h4v18H6a2 2 0 0 1-2-2V5Zm10-2h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4V3Z"/></svg>
+      </button>
+      <button class="ic" id="btn-toc" title="目录">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+      <button class="ic" id="btn-set" title="设置">
+        <svg viewBox="0 0 24 24"><path d="M12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5Zm8.4 5 -1.6-.4a7 7 0 0 0 0-2.2l1.6-.4a1 1 0 0 0 .7-1.2l-.6-2a1 1 0 0 0-1.2-.6l-1.6.5a7 7 0 0 0-1.9-1.1l.2-1.7A1 1 0 0 0 15 3.8h-2a1 1 0 0 0-1 1l.2 1.7A7 7 0 0 0 10.3 7.6l-1.6-.5a1 1 0 0 0-1.2.6l-.6 2a1 1 0 0 0 .7 1.2l1.6.4a7 7 0 0 0 0 2.2l-1.6.4a1 1 0 0 0-.7 1.2l.6 2a1 1 0 0 0 1.2.6l1.6-.5a7 7 0 0 0 1.9 1.1l-.2 1.7a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1l-.2-1.7a7 7 0 0 0 1.9-1.1l1.6.5a1 1 0 0 0 1.2-.6l.6-2a1 1 0 0 0-.7-1.2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="ic" id="btn-hide" title="隐藏 (Alt+X)">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+      <button class="ic danger" id="btn-quit" title="退出">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ══ 阅读区 ══ -->
+  <main id="stage">
+    <webview id="view" src="about:blank" partition="persist:fanqie" allowpopups="false"
+             webpreferences="contextIsolation=yes,sandbox=no,nodeIntegration=no,spellcheck=no"></webview>
+
+    <!-- 空状态 / 欢迎 -->
+    <div id="welcome">
+      <div class="w-card">
+        <div class="w-logo">🍅</div>
+        <h1>番茄小窗</h1>
+        <p class="w-sub">把番茄小说装进一枚常驻桌面的小窗</p>
+        <div class="w-input">
+          <input id="open-input" type="text" spellcheck="false"
+                 placeholder="粘贴书籍链接，如 fanqienovel.com/page/…" />
+          <button id="open-btn">打开</button>
+        </div>
+        <div class="w-tips">
+          <span>老板键 <b>Alt+X</b></span><span>穿透 <b>Alt+V</b></span><span>置顶 <b>Alt+C</b></span>
+        </div>
+      </div>
+      <div id="recent-wrap">
+        <div class="r-head">最近在读</div>
+        <div id="recent-list"></div>
+      </div>
+    </div>
+
+    <!-- 加载指示 -->
+    <div id="loading" class="hidden"><div class="spin"></div></div>
+
+    <!-- 侧滑面板：书架 / 目录 / 设置 -->
+    <div id="panel" class="hidden">
+      <div id="panel-mask"></div>
+      <aside id="panel-body">
+        <div id="panel-head">
+          <span id="panel-title">目录</span>
+          <button class="ic" id="panel-close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <!-- 目录 -->
+        <section id="sec-toc" class="p-sec hidden">
+          <input id="toc-filter" type="text" placeholder="搜索章节…" spellcheck="false" />
+          <div id="toc-list" class="scroll"></div>
+        </section>
+
+        <!-- 书架 -->
+        <section id="sec-shelf" class="p-sec hidden">
+          <div class="add-row">
+            <input id="shelf-input" type="text" spellcheck="false"
+                   placeholder="粘贴番茄链接或书籍 ID，添加新书…" />
+            <button id="shelf-add" title="添加书籍">＋</button>
+          </div>
+          <div class="add-tip">支持：changdunovel.com 分享短链、fanqienovel.com/page/数字、分享文案、纯数字 ID</div>
+          <div id="shelf-list" class="scroll"></div>
+        </section>
+
+        <!-- 设置 -->
+        <section id="sec-set" class="p-sec hidden">
+          <div class="s-group">
+            <div class="s-label">主题</div>
+            <div id="theme-chips">
+              <button data-theme="paper">纸白</button>
+              <button data-theme="kraft">米黄</button>
+              <button data-theme="night">夜间</button>
+              <button data-theme="green">护眼</button>
+            </div>
+          </div>
+          <div class="s-row"><span>字号</span><input id="s-fs" type="range" min="14" max="30" step="1" /><b id="v-fs">19</b></div>
+          <div class="s-row"><span>行距</span><input id="s-lh" type="range" min="1.4" max="2.4" step="0.05" /><b id="v-lh">1.9</b></div>
+          <div class="s-row"><span>版心</span><input id="s-w" type="range" min="360" max="960" step="20" /><b id="v-w">640</b></div>
+          <div class="s-row"><span>透明度</span><input id="s-op" type="range" min="30" max="100" step="5" /><b id="v-op">100%</b></div>
+          <div class="s-group">
+            <div class="s-label">窗口</div>
+            <div class="chips" id="size-chips">
+              <button data-w="320" data-h="520">紧凑</button>
+              <button data-w="420" data-h="660">标准</button>
+              <button data-w="560" data-h="800">宽松</button>
+            </div>
+          </div>
+          <label class="s-toggle"><span>窗口置顶</span><input id="s-top" type="checkbox" /></label>
+          <label class="s-toggle"><span>鼠标穿透（不挡操作）</span><input id="s-pierce" type="checkbox" /></label>
+          <div class="s-group">
+            <div class="s-label">自动滚动</div>
+            <label class="s-toggle"><span>开启</span><input id="s-auto" type="checkbox" /></label>
+            <div class="s-row"><span>速度</span><input id="s-speed" type="range" min="0.5" max="4" step="0.25" /><b id="v-speed">1×</b></div>
+          </div>
+          <label class="s-toggle"><span>读完本章自动下一章</span><input id="s-autonext" type="checkbox" /></label>
+          <div class="s-keys">
+            <div class="s-label">快捷键</div>
+            <div>Alt+X 隐藏 / 唤出 · Alt+V 鼠标穿透 · Alt+C 置顶</div>
+            <div>← / → 上一章 / 下一章 · 双击底栏 自动滚动</div>
+            <div style="margin-top:6px">添加新书：点标题栏「书架」→ 顶部输入框粘贴链接</div>
+          </div>
+          <button id="btn-external" class="ghost">在浏览器打开当前章节</button>
+        </section>
+      </aside>
+    </div>
+
+    <div id="toast" class="hidden"></div>
+  </main>
+
+  <!-- ══ 底栏 ══ -->
+  <footer id="bottombar">
+    <button class="nav" id="btn-prev" title="上一章 (←)">
+      <svg viewBox="0 0 24 24"><path d="M14.5 6 8.5 12l6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="prog">
+      <div id="prog-track"><div id="prog-bar"></div></div>
+      <span id="prog-txt">— / —</span>
+    </div>
+    <button class="nav" id="btn-auto" title="自动滚动">
+      <svg viewBox="0 0 24 24" id="ic-play"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>
+      <svg viewBox="0 0 24 24" id="ic-pause" class="hidden"><path d="M7 5h3.4v14H7zM13.6 5H17v14h-3.4z"/></svg>
+    </button>
+    <button class="nav" id="btn-next" title="下一章 (→)">
+      <svg viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
