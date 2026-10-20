@@ -16,7 +16,7 @@
 | 置顶 | 默认窗口置顶，悬浮在所有应用之上（`Alt+C` 切换） |
 | 鼠标穿透 | 开启后窗口不挡鼠标操作（`Alt+V` 切换，托盘可关闭） |
 | 老板键 | `Alt+X` 全局隐藏 / 唤出，托盘常驻 |
-| 链接打开 | 粘贴番茄分享链接 / 网页链接 / 纯书籍 ID 即可打开 |
+| 链接打开 | 支持手机分享短链（`changdunovel.com/t/...`）、网页链接、分享文案、纯书籍 ID |
 | 目录 | 自动抓取完整目录（含分卷），支持搜索、跳章 |
 | 书架 | 本地书架 + 阅读进度记忆（章节 + 滚动位置），下次打开自动续读 |
 | 排版 | 字号 / 行距 / 版心宽度可调；纸白、米黄、夜间、护眼绿四主题 |
@@ -27,6 +27,9 @@
 ## 🚀 运行
 
 ```bat
+git clone https://github.com/huayangxiaobai/fanqie-reader.git
+cd fanqie-reader
+
 # 方式一：双击
 start-reader.bat
 
@@ -39,6 +42,9 @@ electron . --open=https://fanqienovel.com/page/7687509523090656280
 ```
 
 依赖：Windows 10/11 + WebView2 运行时（系统自带）+ Node.js 18+。
+
+> 国内网络安装 Electron 较慢时，可先设置镜像：
+> `set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`
 
 ## ⌨️ 快捷键
 
