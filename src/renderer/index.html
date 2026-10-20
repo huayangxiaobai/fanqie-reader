@@ -67,6 +67,12 @@
     <!-- 加载指示 -->
     <div id="loading" class="hidden"><div class="spin"></div></div>
 
+    <!-- 登录模式提示条 -->
+    <div id="login-bar" class="hidden">
+      <span id="login-tip">用「番茄小说 App」扫描页面二维码登录</span>
+      <button id="login-back">返回阅读</button>
+    </div>
+
     <!-- 侧滑面板：书架 / 目录 / 设置 -->
     <div id="panel" class="hidden">
       <div id="panel-mask"></div>
@@ -126,6 +132,15 @@
             <div class="s-row"><span>速度</span><input id="s-speed" type="range" min="0.5" max="4" step="0.25" /><b id="v-speed">1×</b></div>
           </div>
           <label class="s-toggle"><span>读完本章自动下一章</span><input id="s-autonext" type="checkbox" /></label>
+          <div class="s-group">
+            <div class="s-label">账号</div>
+            <div class="s-row"><span>番茄账号</span><b id="login-status">检测中…</b></div>
+            <div class="chips">
+              <button id="btn-login">扫码登录</button>
+              <button id="btn-logout" class="hidden">退出登录</button>
+            </div>
+            <div class="add-tip">登录态长期保持；注意：部分书籍网页端需 SVIP 权益才能畅读全文（APP 端免费阅读）</div>
+          </div>
           <div class="s-keys">
             <div class="s-label">快捷键</div>
             <div>Alt+X 隐藏 / 唤出 · Alt+V 鼠标穿透 · Alt+C 置顶</div>

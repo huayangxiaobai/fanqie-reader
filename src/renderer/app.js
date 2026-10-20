@@ -18,6 +18,7 @@ const state = {
   nextAt: 0,           // 自动下一章的时间闸
   tocRendered: 0,
   tocFilter: '',
+  loginMode: false,    // 正在登录页/登录流程中
 };
 
 const view = $('#view');
@@ -134,6 +135,10 @@ async function openText(text) {
 
 function loadChapter(index, { ratio = 0 } = {}) {
   if (!state.toc || index < 0 || index >= state.toc.ids.length) return;
+  if (state.loginMode) { // 从登录页翻章 = 离开登录流程
+    state.loginMode = false;
+    $('#login-bar').classList.add('hidden');
+  }
   state.index = index;
   state.ratio = ratio;
   state.pendingRatio = ratio;
@@ -162,6 +167,52 @@ function step(dir) {
 
 function setLoading(on) {
   els.loading.classList.toggle('hidden', !on);
+}
+
+/* ─────────── 账号登录 ─────────── */
+function setLoginTip(t) { $('#login-tip').textContent = t; }
+
+async function refreshLoginStatus() {
+  const el = $('#login-status');
+  if (!el) return 'unknown';
+  el.textContent = '检测中…';
+  const st = await window.fr.loginStatus().catch(() => 'unknown');
+  el.textContent = st === 'in' ? '已登录 ✓' : '未登录';
+  $('#btn-logout').classList.toggle('hidden', st !== 'in');
+  return st;
+}
+
+function openLoginPage() {
+  state.loginMode = true;
+  els.welcome.classList.add('hidden');
+  $('#login-bar').classList.remove('hidden');
+  // 桌面版没有独立 /login 页（404）：登录二维码就在章节页的付费提示框里，扫码即登录
+  setLoginTip('用「番茄小说 App」扫描页面里的二维码登录，完成后点「返回阅读」');
+  try {
+    if (state.toc && state.index >= 0) {
+      view.loadURL(`https://fanqienovel.com/reader/${state.toc.ids[state.index]}`);
+    } else {
+      view.loadURL('https://fanqienovel.com/');
+    }
+  } catch { /* ignore */ }
+}
+
+function backFromLogin() {
+  state.loginMode = false;
+  $('#login-bar').classList.add('hidden');
+  refreshLoginStatus();
+  if (state.toc && state.index >= 0) {
+    loadChapter(state.index, { ratio: 0 }); // 重新加载当前章，带上登录态
+    toast('已返回阅读');
+  } else {
+    showWelcome();
+  }
+}
+
+async function doLogout() {
+  await window.fr.logout().catch(() => {});
+  refreshLoginStatus();
+  toast('已退出登录（如页面仍是旧状态，翻一章即可）');
 }
 
 function updateBar() {
@@ -194,7 +245,9 @@ function saveProgress() {
 /* ─────────── webview 事件 ─────────── */
 function bindView() {
   view.addEventListener('dom-ready', () => {
-    if (!state.readingCss) return;
+    const url = (view.getURL && view.getURL()) || '';
+    // 只在阅读页注入小窗阅读样式，登录页等保持原样（否则二维码会被样式破坏）
+    if (!state.readingCss || !READER_RE.test(url)) return;
     try {
       view.insertCSS(state.readingCss);
     } catch { /* ignore */ }
@@ -317,6 +370,7 @@ function showPanel(which) {
     // 书架为空时把光标放到输入框，直接粘贴即可添加
     if (!state.books.length) setTimeout(() => $('#shelf-input').focus(), 120);
   }
+  if (which === 'set') refreshLoginStatus();
 }
 
 function renderPanel() {
@@ -599,6 +653,14 @@ function bindEvents() {
       window.fr.openExternal('https://fanqienovel.com');
     }
   });
+
+  /* 账号登录 */
+  $('#btn-login').addEventListener('click', () => {
+    showPanel(null);
+    openLoginPage();
+  });
+  $('#btn-logout').addEventListener('click', doLogout);
+  $('#login-back').addEventListener('click', backFromLogin);
 
   /* 壳层键盘 */
   document.addEventListener('keydown', (e) => {

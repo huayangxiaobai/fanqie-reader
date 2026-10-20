@@ -5,7 +5,7 @@
  */
 const {
   app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu,
-  nativeImage, shell, screen,
+  nativeImage, shell, screen, session,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -393,6 +393,30 @@ function registerIpc() {
       .match(/module\.exports\s*=\s*`([\s\S]*)`/) || ['', ''])[1],
     isDev: IS_DEV,
   }));
+
+  /* ── 登录态（番茄网页版扫码登录，cookie 存于 persist:fanqie 会话）── */
+  const FQ_SES = 'persist:fanqie';
+  const LOGIN_COOKIE_HINTS = ['sessionid', 'sid_tt', 'sid_guard', 'uid_tt', 'sid_ucp'];
+
+  ipcMain.handle('login:status', async () => {
+    try {
+      const cookies = await session.fromPartition(FQ_SES).cookies.get({ domain: 'fanqienovel.com' });
+      const names = cookies.map((c) => c.name.toLowerCase());
+      const ok = LOGIN_COOKIE_HINTS.some((h) => names.some((n) => n === h || n.startsWith(h)));
+      return ok ? 'in' : 'out';
+    } catch {
+      return 'unknown';
+    }
+  });
+
+  ipcMain.handle('login:logout', async () => {
+    const ses = session.fromPartition(FQ_SES);
+    const cookies = await ses.cookies.get({ domain: 'fanqienovel.com' });
+    for (const c of cookies) {
+      try { await ses.cookies.remove(`https://${c.domain.replace(/^\./, '')}${c.path}`, c.name); } catch { /* ignore */ }
+    }
+    return 'out';
+  });
 
   ipcMain.handle('settings:set', (_e, patch) => {
     Object.assign(store.settings, patch || {});

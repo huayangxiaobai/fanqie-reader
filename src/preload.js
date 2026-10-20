@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('fr', {
   refreshToc: (bookId) => ipcRenderer.invoke('toc:refresh', bookId),
   saveProgress: (p) => ipcRenderer.invoke('progress:save', p),
   removeBook: (bookId) => ipcRenderer.invoke('book:remove', bookId),
+  loginStatus: () => ipcRenderer.invoke('login:status'),
+  logout: () => ipcRenderer.invoke('login:logout'),
   openExternal: (url) => ipcRenderer.invoke('external:open', url),
   hideWindow: () => ipcRenderer.invoke('win:hide'),
   quitApp: () => ipcRenderer.invoke('win:close'),
