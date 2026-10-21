@@ -8,3 +8,7 @@ Thumbs.db
 .idea/
 .vscode/
 _probe/
+*.json.tmp
+_test_local.txt
+c.json
+dev.json
