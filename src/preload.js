@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('fr', {
   removeBook: (bookId) => ipcRenderer.invoke('book:remove', bookId),
   loginStatus: () => ipcRenderer.invoke('login:status'),
   logout: () => ipcRenderer.invoke('login:logout'),
+  pickLocalTxt: () => ipcRenderer.invoke('local:pick'),
+  openLocalTxt: (p) => ipcRenderer.invoke('local:open', p),
+  localChapter: (bookId, index) => ipcRenderer.invoke('local:chapter', bookId, index),
   openExternal: (url) => ipcRenderer.invoke('external:open', url),
   hideWindow: () => ipcRenderer.invoke('win:hide'),
   quitApp: () => ipcRenderer.invoke('win:close'),
@@ -19,4 +22,5 @@ contextBridge.exposeInMainWorld('fr', {
   resizeWindow: (w, h) => ipcRenderer.invoke('win:resize', w, h),
   onSettingsChanged: (fn) => ipcRenderer.on('settings-changed', (_e, s) => fn(s)),
   onOpenRequest: (fn) => ipcRenderer.on('open-request', (_e, text) => fn(text)),
+  onOpenTxtRequest: (fn) => ipcRenderer.on('open-txt-request', (_e, p) => fn(p)),
 });

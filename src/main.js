@@ -5,7 +5,7 @@
  */
 const {
   app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu,
-  nativeImage, shell, screen, session,
+  nativeImage, shell, screen, session, dialog,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -296,6 +296,17 @@ function createWindow() {
     });
   }
 
+  // 命令行打开本地 TXT：electron . --open-txt=<路径>
+  const openTxtArg = process.argv.find((a) => a.startsWith('--open-txt='));
+  if (openTxtArg) {
+    const p = openTxtArg.slice('--open-txt='.length);
+    win.webContents.on('did-finish-load', () => {
+      setTimeout(() => {
+        try { win.webContents.send('open-txt-request', p); } catch { /* ignore */ }
+      }, 1200);
+    });
+  }
+
   let boundsTimer = null;
   const rememberBounds = () => {
     clearTimeout(boundsTimer);
@@ -456,8 +467,51 @@ function registerIpc() {
   });
 
   ipcMain.handle('book:openId', async (_e, bookId, itemId) => {
-    const toc = await fetchToc(String(bookId));
-    return await buildOpenResult(String(bookId), toc, itemId || null);
+    const id = String(bookId);
+    if (id.startsWith(LOCAL_PREFIX)) {
+      const entry = loadLocalBook(id);
+      if (!entry) throw new Error('本地文件已移动或删除，请重新添加');
+      const book = store.books.find((b) => b.id === id);
+      let toc = null;
+      try { toc = JSON.parse(fs.readFileSync(path.join(TOC_DIR(), `${id}.json`), 'utf-8')); } catch { /* ignore */ }
+      if (!toc) toc = {
+        ids: entry.chapters.map((_, i) => `${id}#${i}`),
+        titles: entry.chapters.map((c) => c.title),
+        vols: [],
+      };
+      let index = book.lastIndex || 0;
+      if (itemId) {
+        const i = toc.ids.indexOf(String(itemId));
+        if (i >= 0) index = i;
+      }
+      store.currentBookId = id;
+      saveStore();
+      return { book, toc, index, books: store.books };
+    }
+    const toc = await fetchToc(id);
+    return await buildOpenResult(id, toc, itemId || null);
+  });
+
+  /* ── 本地 TXT ── */
+  ipcMain.handle('local:pick', async () => {
+    const r = await dialog.showOpenDialog(win, {
+      title: '选择要阅读的 TXT 文件',
+      properties: ['openFile'],
+      filters: [{ name: '文本文件', extensions: ['txt'] }],
+    });
+    if (r.canceled || !r.filePaths.length) return null;
+    return openLocalTxt(r.filePaths[0]);
+  });
+
+  ipcMain.handle('local:open', (_e, filePath) => openLocalTxt(String(filePath)));
+
+  ipcMain.handle('local:chapter', (_e, bookId, index) => {
+    const entry = loadLocalBook(String(bookId));
+    if (!entry) throw new Error('本地文件已移动或删除，请重新添加');
+    const i = Number(index) || 0;
+    const ch = entry.chapters[i];
+    if (!ch) throw new Error('章节不存在');
+    return { title: ch.title, html: chapterHtml(ch.title, ch.body) };
   });
 
   ipcMain.handle('toc:refresh', async (_e, bookId) => {
@@ -519,6 +573,110 @@ async function buildOpenResult(bookId, toc, openItemId) {
     if (i >= 0) index = i;
   }
   if (index >= toc.ids.length) index = 0;
+  return { book, toc, index, books: store.books };
+}
+
+/* ------------------------------------------------------------------ *
+ * 本地 TXT 阅读（配合番茄导出工具使用：自己的 TXT 在自己电脑上读）
+ * ------------------------------------------------------------------ */
+const LOCAL_PREFIX = 'local-';  // 注意：不带冒号，才能安全用作 toc 缓存文件名
+const localCache = new Map(); // bookId -> { path, chapters: [{title, body}] }
+
+function decodeTxt(buf) {
+  const utf8 = buf.toString('utf-8');
+  if (!utf8.includes('\uFFFD')) return utf8.replace(/^\uFEFF/, '');
+  try { return new TextDecoder('gb18030').decode(buf); } catch { return utf8; }
+}
+
+/** 按「第X章 / 第X回 / Chapter N」切分，识别不到就按 4000 字硬切 */
+function splitChapters(text) {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  const re = /^(?:第\s*[0-9０-９一二三四五六七八九十百千万零〇两]+\s*[章节回卷集篇]|Chapter\s+\d+|CHAPTER\s+\d+)(?:\s|$|[:：、.．]).{0,40}$/;
+  const marks = [];
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (t && t.length <= 40 && re.test(t)) marks.push({ line: i, title: t });
+  }
+  const chapters = [];
+  if (marks.length >= 3) {
+    // 第一章前的序言单独成章
+    if (marks[0].line > 0) {
+      const pre = lines.slice(0, marks[0].line).join('\n').trim();
+      if (pre.length > 50) chapters.push({ title: '序', body: pre });
+    }
+    for (let k = 0; k < marks.length; k++) {
+      const start = marks[k].line + 1;
+      const end = k + 1 < marks.length ? marks[k + 1].line : lines.length;
+      chapters.push({ title: marks[k].title, body: lines.slice(start, end).join('\n').trim() });
+    }
+  } else {
+    const size = 4000;
+    for (let i = 0, n = 1; i < text.length; i += size, n++) {
+      chapters.push({ title: `第 ${n} 段`, body: text.slice(i, i + size) });
+    }
+  }
+  return chapters.filter((c) => c.body || c.title);
+}
+
+function loadLocalBook(bookId) {
+  if (localCache.has(bookId)) return localCache.get(bookId);
+  const book = store.books.find((b) => b.id === bookId);
+  if (!book || !book.local || !book.path) return null;
+  const buf = fs.readFileSync(book.path);
+  const chapters = splitChapters(decodeTxt(buf));
+  const entry = { path: book.path, chapters };
+  localCache.set(bookId, entry);
+  return entry;
+}
+
+function chapterHtml(title, body) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const paras = body.split('\n').map((l) => l.trim()).filter(Boolean)
+    .map((l) => `<p>${esc(l)}</p>`).join('');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+:root{--fr-fs:19px;--fr-lh:1.9;--fr-w:640px;--fr-bg:#F7F2E9;--fr-fg:#33302A;}
+html,body{margin:0;padding:0;background:var(--fr-bg);color:var(--fr-fg);overflow-x:hidden;}
+body{font-size:var(--fr-fs);line-height:var(--fr-lh);
+  font-family:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;}
+.wrap{max-width:min(var(--fr-w),100%);margin:0 auto;padding:16px 18px 96px;}
+h2{font-size:1.12em;font-weight:600;margin:0 0 16px;line-height:1.5;}
+p{margin:0 0 .8em;text-indent:2em;word-break:break-word;}
+.end{color:var(--fr-fg);opacity:.35;font-size:.8em;text-align:center;margin-top:26px;}
+</style></head><body><div class="wrap"><h2>${esc(title)}</h2>${paras}
+<div class="end">— 本章完 —</div></div></body></html>`;
+}
+
+/** 打开本地 TXT：返回与在线书籍一致的 { book, toc, index, books } */
+function openLocalTxt(filePath) {
+  const st = fs.statSync(filePath);
+  const name = path.basename(filePath, path.extname(filePath));
+  const id = LOCAL_PREFIX + Buffer.from(filePath).toString('base64url').slice(0, 40);
+  const chapters = splitChapters(decodeTxt(fs.readFileSync(filePath)));
+  if (!chapters.length) throw new Error('这个 TXT 里没有可用正文');
+  localCache.set(id, { path: filePath, chapters });
+
+  const toc = {
+    ids: chapters.map((_, i) => `${id}#${i}`),
+    titles: chapters.map((c) => c.title),
+    vols: [],
+  };
+  let book = store.books.find((b) => b.id === id);
+  if (!book) {
+    book = {
+      id, local: true, path: filePath, name,
+      author: `本地 TXT · ${(st.size / 1048576).toFixed(1)} MB`,
+      lastItemId: toc.ids[0], lastIndex: 0, ratio: 0, title: toc.titles[0] || '',
+      updatedAt: Date.now(),
+    };
+    store.books.unshift(book);
+  } else {
+    book.name = name;
+    book.updatedAt = Date.now();
+  }
+  store.currentBookId = id;
+  saveStore();
+  writeToc(id, toc);
+  const index = Math.min(Math.max(book.lastIndex || 0, 0), chapters.length - 1);
   return { book, toc, index, books: store.books };
 }
 

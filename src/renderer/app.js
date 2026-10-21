@@ -142,6 +142,29 @@ function loadChapter(index, { ratio = 0 } = {}) {
   state.index = index;
   state.ratio = ratio;
   state.pendingRatio = ratio;
+
+  // 本地 TXT：由主进程渲染章节 HTML，用 data: URL 载入
+  if (state.book && state.book.local) {
+    state.loading = true;
+    setLoading(true);
+    window.fr.localChapter(state.book.id, index).then(({ title, html }) => {
+      state.localHtml = html;
+      if (title) {
+        els.chapname.textContent = title;
+        state.toc.titles[index] = title;
+      }
+      view.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    }).catch((e) => {
+      state.loading = false;
+      setLoading(false);
+      toast('读取失败：' + (e.message || e));
+    });
+    updateBar();
+    applyAutoScroll();
+    saveProgress();
+    return;
+  }
+
   const id = state.toc.ids[index];
   state.loading = true;
   setLoading(true);
@@ -246,6 +269,8 @@ function saveProgress() {
 function bindView() {
   view.addEventListener('dom-ready', () => {
     const url = (view.getURL && view.getURL()) || '';
+    // 本地 TXT 章节（data: 页面）自带样式，只需同步主题/字号变量
+    if (url.startsWith('data:text/html')) { applyReadingVars(); return; }
     // 只在阅读页注入小窗阅读样式，登录页等保持原样（否则二维码会被样式破坏）
     if (!state.readingCss || !READER_RE.test(url)) return;
     try {
@@ -472,14 +497,14 @@ function renderShelf() {
     const d = document.createElement('div');
     d.className = 'r-item';
     d.innerHTML = `
-      <div class="r-cover" style="background:${coverColor(b.id)}">书</div>
+      <div class="r-cover" style="background:${coverColor(b.id)}">${b.local ? '文' : '书'}</div>
       <div class="r-info">
         <div class="r-name"></div>
         <div class="r-chap"></div>
       </div>
       <button class="r-del" title="移出书架">✕</button>`;
     d.querySelector('.r-name').textContent = b.name || `书籍 ${b.id}`;
-    d.querySelector('.r-chap').textContent = b.title ? `读到 ${b.title}` : '刚开始读';
+    d.querySelector('.r-chap').textContent = (b.local ? '本地 · ' : '') + (b.title ? `读到 ${b.title}` : '刚开始读');
     d.addEventListener('click', async (e) => {
       if (e.target.classList.contains('r-del')) return;
       setLoading(true);
@@ -671,6 +696,19 @@ function bindEvents() {
   $('#btn-logout').addEventListener('click', doLogout);
   $('#login-back').addEventListener('click', backFromLogin);
 
+  /* 打开本地 TXT */
+  $('#shelf-open-txt').addEventListener('click', async () => {
+    try {
+      const res = await window.fr.pickLocalTxt();
+      if (!res) return;
+      enterBook(res);
+      showPanel(null);
+      toast(`已打开《${res.book.name}》· 共 ${res.toc.ids.length} 章`);
+    } catch (e) {
+      toast('打开失败：' + (e.message || e));
+    }
+  });
+
   /* 壳层键盘 */
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
@@ -689,6 +727,16 @@ function bindEvents() {
   window.fr.onOpenRequest((text) => {
     $('#open-input').value = text;
     openFromInput();
+  });
+
+  window.fr.onOpenTxtRequest(async (p) => {
+    try {
+      const res = await window.fr.openLocalTxt(p);
+      enterBook(res);
+      toast(`已打开《${res.book.name}》· 共 ${res.toc.ids.length} 章`);
+    } catch (e) {
+      toast('打开失败：' + (e.message || e));
+    }
   });
 }
 
