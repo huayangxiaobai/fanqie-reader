@@ -257,6 +257,15 @@ function bindView() {
   view.addEventListener('did-finish-load', () => {
     state.loading = false;
     setLoading(false);
+    // 付费墙提示：部分书网页端需官方 App / SVIP 才能看全文（只提示一次）
+    const u0 = (view.getURL && view.getURL()) || '';
+    if (READER_RE.test(u0)) {
+      setTimeout(() => {
+        view.executeJavaScript("document.body.innerText.includes('扫码下载APP免费读')||document.body.innerText.includes('SVIP网页畅读')")
+          .then((hit) => { if (hit) toast('本章网页端受限：这本书需要番茄 App（免费）或 SVIP 才能看全文'); })
+          .catch(() => {});
+      }, 1500);
+    }
     // 恢复滚动位置
     if (state.pendingRatio > 0.005) {
       const r = state.pendingRatio;
