@@ -82,6 +82,24 @@ fanqie-reader/
 └── start-reader.bat       # Windows 一键启动
 ```
 
+## 📌 已知限制（实测数据）
+
+番茄**网页版**对未开通 SVIP 的账号只开放目录**前 10 章**，第 11 章起服务端只下发 300~400 字预览并置 `isChapterLock: true`。实测两者的边界完全一致（第 10 章 4629 字全文可读 / 第 11 章仅 365 字）。
+
+绕过尝试均已验证无效，无需重复踩坑：
+
+| 尝试 | 结果 |
+| --- | --- |
+| 模拟手机 UA（iPhone / Android / 番茄 App WebView / 抖音 WebView） | 与桌面 UA 返回**完全相同**的预览，`isChapterLock` 恒为 `true` |
+| 移动端 URL 变体（`?force_mobile=1`、`m.fanqienovel.com`） | 前者无差异，后者域名不存在 |
+| 官方 App 接口 `novel.snssdk.com`、`api5-*.fqnovel.com` | 无设备注册与请求签名时一律返回空包（HTTP 200 / 0 字节） |
+| 页面数据接口 `/api/reader/full` 等 | 空响应或 404 |
+| 开源下载器 | 全部依赖作者私藏中转服务或私有 crate（地址与 token 不开源），公开的那些已失效 |
+
+原因：限制在服务端按**账号权益**计算（正文随 SSR 下发），与客户端指纹无关，因此改 UA / 模拟设备无法获得更多内容。
+
+**可行路径**：番茄手机 App 内全本免费阅读；或在网页端开通 SVIP 畅读权益（本应用支持登录与登录态保持）。
+
 ## 🔍 GitHub 上的类似项目（调研参考）
 
 | 项目 | Stars | 借鉴点 |

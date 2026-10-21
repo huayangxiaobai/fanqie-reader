@@ -262,7 +262,7 @@ function bindView() {
     if (READER_RE.test(u0)) {
       setTimeout(() => {
         view.executeJavaScript("document.body.innerText.includes('扫码下载APP免费读')||document.body.innerText.includes('SVIP网页畅读')")
-          .then((hit) => { if (hit) toast('本章网页端受限：这本书需要番茄 App（免费）或 SVIP 才能看全文'); })
+          .then((hit) => { if (hit) toast('网页端仅开放前 10 章：本书后续章节需番茄 App（免费）或 SVIP 畅读'); })
           .catch(() => {});
       }, 1500);
     }
